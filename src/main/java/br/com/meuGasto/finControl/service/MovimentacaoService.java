@@ -12,11 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -229,32 +231,62 @@ public class MovimentacaoService {
     @Transactional(readOnly = true)
     public PrevisaoFinanceiraDTO obterPrevisaoFinanceira() {
         YearMonth mesAtual = YearMonth.now();
-        LocalDateTime inicioDomes = mesAtual.atDay(1).atStartOfDay();
-        LocalDateTime fimDomes = mesAtual.atEndOfMonth().atTime(23, 59, 59);
+        LocalDateTime inicioDoMes = mesAtual.atDay(1).atStartOfDay();
+        LocalDateTime fimDoMes = mesAtual.atEndOfMonth().atTime(23, 59, 59);
 
-        List<Gasto> gastosDoMes = gastoRepository.findByDataGastoBetween(inicioDomes, fimDomes);
+        // Buscar gastos e receitas
+        List<Gasto> gastosDoMes = gastoRepository.findByDataGastoBetween(inicioDoMes, fimDoMes);
+        List<Gasto> receitasDoMes = gastoRepository.findByDataGastoBetween(inicioDoMes, fimDoMes);
 
-        BigDecimal totalAtual = gastosDoMes.stream()
+        BigDecimal despesaRealizada = gastosDoMes.stream()
                 .map(Gasto::getValor)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Calcular previsão com base na média de dias
+        BigDecimal receitaRealizada = receitasDoMes.stream()
+                .map(Gasto::getValor)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal saldoRealizado = receitaRealizada.subtract(despesaRealizada);
+
         int diaAtual = LocalDate.now().getDayOfMonth();
         int diasNoMes = mesAtual.atEndOfMonth().getDayOfMonth();
 
-        BigDecimal despesaPrevista = totalAtual.multiply(new BigDecimal(diasNoMes))
-                .divide(new BigDecimal(diaAtual), 2, java.math.RoundingMode.HALF_UP);
+        BigDecimal despesaPrevista = despesaRealizada.multiply(new BigDecimal(diasNoMes))
+                .divide(new BigDecimal(diaAtual), 2, RoundingMode.HALF_UP);
 
-        BigDecimal receitaPrevista = BigDecimal.ZERO; // Ajustar se tiver receitas
+        BigDecimal receitaPrevista = receitaRealizada.multiply(new BigDecimal(diasNoMes))
+                .divide(new BigDecimal(diaAtual), 2, RoundingMode.HALF_UP);
+
         BigDecimal saldoPrevisto = receitaPrevista.subtract(despesaPrevista);
 
+        // Construir evolução diária
+        List<EvolucaoDiariaDTO> evolucaoDiaria = IntStream.rangeClosed(1, diaAtual)
+                .mapToObj(dia -> EvolucaoDiariaDTO.builder()
+                        .dia(dia)
+                        .receita(receitasDoMes.stream()
+                                .filter(r -> r.getDataGasto().getDayOfMonth() == dia)
+                                .map(Gasto::getValor)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add))
+                        .despesa(gastosDoMes.stream()
+                                .filter(g -> g.getDataGasto().getDayOfMonth() == dia)
+                                .map(Gasto::getValor)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add))
+                        .build())
+                .collect(Collectors.toList());
+
         return PrevisaoFinanceiraDTO.builder()
+                .receitaRealizada(receitaRealizada)
+                .despesaRealizada(despesaRealizada)
+                .saldoRealizado(saldoRealizado)
                 .receitaPrevista(receitaPrevista)
                 .despesaPrevista(despesaPrevista)
                 .saldoPrevisto(saldoPrevisto)
+                .evolucaoDiaria(evolucaoDiaria)
                 .periodo(mesAtual.toString())
                 .build();
     }
+
+
 
     /**
      * Exportar movimentações em CSV
