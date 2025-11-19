@@ -14,15 +14,15 @@
 	<name>finControl</name>
 	<description>Gerenciamento de Gastos</description>
 
-	<properties>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<java.version>17</java.version>
-		<sonar.organization>bobjun</sonar.organization>
-		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.projectKey>bobjun_finControl</sonar.projectKey>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <java.version>17</java.version>
+
         <sonar.organization>bobjun</sonar.organization>
-	</properties>
+        <sonar.projectKey>bobjun_finControl</sonar.projectKey>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+    </properties>
 
 	<dependencies>
 
